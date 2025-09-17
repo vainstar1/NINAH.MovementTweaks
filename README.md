@@ -2,9 +2,7 @@
 
 Slight movement tweaks for No, I'm not a Human.
 
-Adds sprinting and crouching. Default keys are:
-Sprint - Shift
-Crouch - LeftControl
+Adds sprinting and crouching. 
 
 You can change the sprint speed using the - and = keys. This can be changed in the config file:
 bepinex/config/com.vainstar.NINAH.WalkSpeed.cfg
