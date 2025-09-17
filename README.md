@@ -1,4 +1,4 @@
-# NINAH.WalkSpeed
+# NINAH.MovementTweaks
 
 Slight movement tweaks for No, I'm not a Human.
 
