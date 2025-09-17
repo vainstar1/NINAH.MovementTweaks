@@ -5,7 +5,7 @@ using BepInEx.Unity.IL2CPP;
 using Il2CppInterop.Runtime.Injection;
 using UnityEngine;
 
-[BepInPlugin("com.vainstar.NINAH.WalkSpeed", "NINAH.WalkSpeed", "1.0.3")]
+[BepInPlugin("com.vainstar.NINAH.WalkSpeed", "NINAH.WalkSpeed", "1.0.4")]
 public class NINAHWalkSpeed : BasePlugin
 {
     internal static ConfigFile Cfg;
@@ -14,13 +14,24 @@ public class NINAHWalkSpeed : BasePlugin
     internal static ConfigEntry<KeyCode> SpeedUpKey;
     internal static ConfigEntry<KeyCode> SpeedDownKey;
 
+    internal static ConfigEntry<KeyCode> AccelerationToggleKey;
+    internal static ConfigEntry<float> AccelerationHigh;
+    internal static ConfigEntry<float> AccelerationLow;
+    internal static ConfigEntry<bool> AccelerationUseLow;
+
     public override void Load()
     {
         Cfg = Config;
+
         SprintBonus = Config.Bind("Movement", "SprintBonus", 2f, "Added to base walk speed while sprinting");
         SprintKey = Config.Bind("Input", "SprintKey", KeyCode.LeftShift, "Hold to sprint");
         SpeedUpKey = Config.Bind("Input", "IncreaseKey", KeyCode.Equals, "Increase sprint bonus");
         SpeedDownKey = Config.Bind("Input", "DecreaseKey", KeyCode.Minus, "Decrease sprint bonus");
+
+        AccelerationToggleKey = Config.Bind("Input", "AccelerationToggleKey", KeyCode.RightAlt, "Toggle acceleration between High/Low");
+        AccelerationHigh = Config.Bind("Movement", "AccelerationHigh", 999f, "Acceleration when toggle is OFF");
+        AccelerationLow = Config.Bind("Movement", "AccelerationLow", 6f, "Acceleration when toggle is ON");
+        AccelerationUseLow = Config.Bind("Movement", "AccelerationUseLow", false, "Persisted toggle state for acceleration");
 
         ClassInjector.RegisterTypeInIl2Cpp<Controller>();
         var go = new GameObject("NINAH.WalkSpeed_Controller");
@@ -32,9 +43,9 @@ public class NINAHWalkSpeed : BasePlugin
     {
         private ECM2.Character character;
         private float baseWalkSpeed = -1f;
+
         private string toastText = "";
         private float toastUntil = 0f;
-        private float toastStart = 0f;
         private UnityEngine.GUIStyle toastStyle;
         private const float ToastDuration = 2f;
         private const float FadeDuration = 0.7f;
@@ -49,9 +60,13 @@ public class NINAHWalkSpeed : BasePlugin
                 if (playerTf == null) return;
                 character = playerTf.gameObject.GetComponent<ECM2.Character>();
                 if (character == null) return;
-                character.maxAcceleration = 999f;
+
                 character._canEverCrouch = true;
                 baseWalkSpeed = character._maxWalkSpeed;
+
+                float initAccel = NINAHWalkSpeed.AccelerationUseLow.Value ? NINAHWalkSpeed.AccelerationLow.Value : NINAHWalkSpeed.AccelerationHigh.Value;
+                if (Math.Abs(character.maxAcceleration - initAccel) > 0.0001f)
+                    character.maxAcceleration = initAccel;
             }
 
             if (global::UnityEngine.Input.GetKeyDown(NINAHWalkSpeed.SpeedUpKey.Value))
@@ -61,6 +76,7 @@ public class NINAHWalkSpeed : BasePlugin
                 NINAHWalkSpeed.Cfg.Save();
                 ShowToast($"Changed sprint speed to {baseWalkSpeed + NINAHWalkSpeed.SprintBonus.Value:0.##}");
             }
+
             if (global::UnityEngine.Input.GetKeyDown(NINAHWalkSpeed.SpeedDownKey.Value))
             {
                 NINAHWalkSpeed.SprintBonus.Value = Math.Max(0f, NINAHWalkSpeed.SprintBonus.Value - 1f);
@@ -68,10 +84,22 @@ public class NINAHWalkSpeed : BasePlugin
                 ShowToast($"Changed sprint speed to {baseWalkSpeed + NINAHWalkSpeed.SprintBonus.Value:0.##}");
             }
 
+            if (global::UnityEngine.Input.GetKeyDown(NINAHWalkSpeed.AccelerationToggleKey.Value))
+            {
+                NINAHWalkSpeed.AccelerationUseLow.Value = !NINAHWalkSpeed.AccelerationUseLow.Value;
+                NINAHWalkSpeed.Cfg.Save();
+                float a = NINAHWalkSpeed.AccelerationUseLow.Value ? NINAHWalkSpeed.AccelerationLow.Value : NINAHWalkSpeed.AccelerationHigh.Value;
+                ShowToast($"Changed acceleration to {a:0.##}");
+            }
+
             bool sprinting = global::UnityEngine.Input.GetKey(NINAHWalkSpeed.SprintKey.Value);
-            float target = sprinting ? baseWalkSpeed + NINAHWalkSpeed.SprintBonus.Value : baseWalkSpeed;
-            if (Math.Abs(character._maxWalkSpeed - target) > 0.0001f)
-                character._maxWalkSpeed = target;
+            float targetWalk = sprinting ? baseWalkSpeed + NINAHWalkSpeed.SprintBonus.Value : baseWalkSpeed;
+            if (Math.Abs(character._maxWalkSpeed - targetWalk) > 0.0001f)
+                character._maxWalkSpeed = targetWalk;
+
+            float targetAccel = NINAHWalkSpeed.AccelerationUseLow.Value ? NINAHWalkSpeed.AccelerationLow.Value : NINAHWalkSpeed.AccelerationHigh.Value;
+            if (Math.Abs(character.maxAcceleration - targetAccel) > 0.0001f)
+                character.maxAcceleration = targetAccel;
         }
 
         private void OnGUI()
@@ -112,8 +140,7 @@ public class NINAHWalkSpeed : BasePlugin
         private void ShowToast(string text)
         {
             toastText = text;
-            toastStart = UnityEngine.Time.time;
-            toastUntil = toastStart + ToastDuration;
+            toastUntil = UnityEngine.Time.time + ToastDuration;
         }
     }
 }
